@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  RESEARCHER
+}
+
+enum Frequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  OCCASIONALLY
+  RARELY
+}
+
+enum Impact {
+  TIME_WASTED
+  MONEY_LOST
+  UNNECESSARY_EFFORT
+  STRESS
+  MISSED_OPPORTUNITIES
+  OTHER
+}
+
+enum Willingness {
+  YES
+  MAYBE
+  NO
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SPAM
+}
+
+enum ResearchStatus {
+  NEW
+  UNDER_REVIEW
+  RESEARCHING
+  VALIDATION_NEEDED
+  VALIDATING
+  SELECTED
+  NOT_SELECTED
+}
+
+model AdminUser {
+  id            String                 @id @default(uuid())
+  email         String                 @unique
+  passwordHash  String
+  name          String
+  role          Role                   @default(ADMIN)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  researchNotes ResearchNote[]
+  statusChanges ProblemStatusHistory[]
+
+  @@map("admin_users")
+}
+
+model ProblemCategory {
+  id           String              @id @default(uuid())
+  name         String              @unique
+  slug         String              @unique
+  description  String?
+  icon         String?
+  displayOrder Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  problems     ProblemSubmission[]
+
+  @@map("problem_categories")
+}
+
+model ProblemSubmission {
+  id                   String                 @id @default(uuid())
+  title                String
+  description          String
+  categoryId           String
+  category             ProblemCategory        @relation(fields: [categoryId], references: [id])
+  targetAudience       String
+  frequency            Frequency
+  impact               Impact
+  impactDetails        String?
+  currentWorkaround    String
+  missingFromSolutions String?
+  willingnessToTest    Willingness            @default(MAYBE)
+  broadLocation        String?
+  contactEmail         String?
+  followUpConsent      Boolean                @default(false)
+  publicDisplayConsent Boolean                @default(false)
+  moderationStatus     ModerationStatus       @default(PENDING)
+  researchStatus       ResearchStatus         @default(NEW)
+  priorityScore        Float?
+  scoreFrequency       Int?
+  scoreSeverity        Int?
+  scoreUnmetDemand     Int?
+  scoreFeasibility     Int?
+  scoreUserAccess      Int?
+  supportCount         Int                    @default(0)
+  isFeatured           Boolean                @default(false)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  supports             ProblemSupport[]
+  researchNotes        ResearchNote[]
+  statusHistory        ProblemStatusHistory[]
+  abuseReports         AbuseReport[]
+  testInterests        TestInterest[]
+
+  @@index([categoryId])
+  @@index([moderationStatus])
+  @@index([researchStatus])
+  @@index([createdAt])
+  @@index([supportCount])
+  @@map("problem_submissions")
+}
+
+model ProblemSupport {
+  id          String            @id @default(uuid())
+  problemId   String
+  problem     ProblemSubmission @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  userIpHash  String
+  createdAt   DateTime          @default(now())
+
+  @@unique([problemId, userIpHash])
+  @@index([problemId])
+  @@map("problem_supports")
+}
+
+model TestInterest {
+  id               String            @id @default(uuid())
+  problemId        String
+  problem          ProblemSubmission @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  email            String?
+  roleOrBackground String?
+  userIpHash       String?
+  createdAt        DateTime          @default(now())
+
+  @@index([problemId])
+  @@map("test_interests")
+}
+
+model ResearchNote {
+  id        String            @id @default(uuid())
+  problemId String
+  problem   ProblemSubmission @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    AdminUser         @relation(fields: [authorId], references: [id])
+  content   String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([problemId])
+  @@index([authorId])
+  @@map("research_notes")
+}
+
+model ProblemStatusHistory {
+  id             String            @id @default(uuid())
+  problemId      String
+  problem        ProblemSubmission @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  changedById    String?
+  changedBy      AdminUser?        @relation(fields: [changedById], references: [id])
+  previousStatus String
+  newStatus      String
+  note           String?
+  createdAt      DateTime          @default(now())
+
+  @@index([problemId])
+  @@map("problem_status_history")
+}
+
+model AbuseReport {
+  id             String            @id @default(uuid())
+  problemId      String
+  problem        ProblemSubmission @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  reason         String
+  details        String?
+  reporterIpHash String?
+  status         String            @default("PENDING")
+  createdAt      DateTime          @default(now())
+
+  @@index([problemId])
+  @@map("abuse_reports")
+}
