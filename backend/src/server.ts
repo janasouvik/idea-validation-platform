@@ -8,9 +8,27 @@ const DEFAULT_PORT = parseInt(process.env.PORT || '5001', 10);
 
 async function startServer() {
   try {
+    if (!process.env.DATABASE_URL) {
+      console.warn('⚠️ Warning: DATABASE_URL environment variable is not defined.');
+    } else if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL.includes('localhost')) {
+      console.warn('⚠️ Warning: DATABASE_URL points to "localhost" in production. Ensure a cloud PostgreSQL URL is provided in your hosting dashboard (e.g. Render/Neon/Supabase).');
+    }
+
     // Verify database connection
     await prisma.$connect();
     console.log('✅ Connected to PostgreSQL database successfully.');
+
+    // Auto-seed initial categories and admin user if empty
+    try {
+      const categoryCount = await prisma.problemCategory.count();
+      if (categoryCount === 0) {
+        console.log('🌱 Fresh database detected. Auto-seeding 11 PRD categories & admin account...');
+        const { seed } = await import('./utils/seed');
+        await seed();
+      }
+    } catch (seedErr) {
+      console.warn('Notice during startup category check:', seedErr);
+    }
 
     const server = app.listen(DEFAULT_PORT, () => {
       console.log(`🚀 ProblemPulse Server running on http://localhost:${DEFAULT_PORT}`);
